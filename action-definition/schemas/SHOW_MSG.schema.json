@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SHOW_MSG",
+  "type": "object",
+  "required": ["action", "type", "content"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "const": "SHOW_MSG"
+    },
+    "type": {
+      "type": "string",
+      "description": "메시지 유형",
+      "enum": ["info", "success", "warning", "error"]
+    },
+    "content": {
+      "type": "string",
+      "description": "사용자에게 표시할 메시지 본문"
+    }
+  },
+  "additionalProperties": false
+}

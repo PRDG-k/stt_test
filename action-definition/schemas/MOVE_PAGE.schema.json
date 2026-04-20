@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MOVE_PAGE",
+  "type": "object",
+  "required": ["action", "url", "params"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "const": "MOVE_PAGE"
+    },
+    "projectId": {
+      "type": "string",
+      "description": "프로젝트 식별자"
+    },
+    "url": {
+      "type": "string",
+      "description": "이동할 페이지 URL"
+    },
+    "params": {
+      "type": "object",
+      "required": ["sId"],
+      "properties": {
+        "sId": {
+          "type": "string",
+          "description": "화면 또는 섹션 ID"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

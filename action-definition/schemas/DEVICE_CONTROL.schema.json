@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DEVICE_CONTROL",
+  "type": "object",
+  "required": ["action", "params"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "const": "DEVICE_CONTROL"
+    },
+    "status": {
+      "type": "string",
+      "description": "제어 처리 상태",
+      "enum": ["success", "fail", "pending"]
+    },
+    "params": {
+      "type": "object",
+      "required": ["device", "command"],
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "제어 대상 장치 ID"
+        },
+        "command": {
+          "type": "string",
+          "description": "장치 제어 명령",
+          "enum": ["REBOOT", "START", "STOP", "RESET"]
+        },
+        "message": {
+          "type": "string",
+          "description": "사용자에게 보여줄 제어 안내 문구"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

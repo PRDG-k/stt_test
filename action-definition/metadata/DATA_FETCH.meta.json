@@ -1,0 +1,41 @@
+{
+  "action": "DATA_FETCH",
+  "title": "데이터 조회",
+  "description": "장치의 실시간 또는 주기 데이터를 조회한다.",
+  "whenToUse": [
+    "전압 조회 요청",
+    "전류 조회 요청",
+    "차트 데이터 요청",
+    "실시간 데이터 모니터링 요청"
+  ],
+  "paramDescriptions": {
+    "target": "데이터를 바인딩할 UI 컴포넌트",
+    "params.device": "조회할 장치 ID",
+    "params.interval": "데이터 조회 주기",
+    "params.fields": "조회할 항목 목록"
+  },
+  "examples": [
+    {
+      "input": "인버터 1번 전압하고 전류를 5초 간격으로 보여줘",
+      "output": {
+        "action": "DATA_FETCH",
+        "target": "realtime_chart",
+        "params": {
+          "device": "inverter_01",
+          "interval": "5s",
+          "fields": ["voltage", "current"]
+        }
+      }
+    }
+  ],
+  "llmHints": {
+    "notes": [
+      "device는 등록된 장치 ID로 변환한다.",
+      "fields에는 허용된 측정 항목만 넣는다.",
+      "사용자가 주기를 말하지 않으면 기본값을 5s로 둘 수 있다."
+    ],
+    "defaultValues": {
+      "interval": "5s"
+    }
+  }
+}

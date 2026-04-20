@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "actions": [
+    {
+      "action": "MOVE_PAGE",
+      "title": "페이지 이동",
+      "description": "지정된 URL 또는 화면으로 이동한다.",
+      "schemaFile": "schemas/MOVE_PAGE.schema.json",
+      "metadataFile": "metadata/MOVE_PAGE.meta.json"
+    },
+    {
+      "action": "DATA_FETCH",
+      "title": "데이터 조회",
+      "description": "장치 또는 화면 대상의 데이터를 조회한다.",
+      "schemaFile": "schemas/DATA_FETCH.schema.json",
+      "metadataFile": "metadata/DATA_FETCH.meta.json"
+    },
+    {
+      "action": "FILE_DOWNLOAD",
+      "title": "파일 다운로드",
+      "description": "생성된 파일 또는 제공된 파일을 다운로드한다.",
+      "schemaFile": "schemas/FILE_DOWNLOAD.schema.json",
+      "metadataFile": "metadata/FILE_DOWNLOAD.meta.json"
+    },
+    {
+      "action": "DEVICE_CONTROL",
+      "title": "장치 제어",
+      "description": "특정 장치에 제어 명령을 전달한다.",
+      "schemaFile": "schemas/DEVICE_CONTROL.schema.json",
+      "metadataFile": "metadata/DEVICE_CONTROL.meta.json"
+    },
+    {
+      "action": "SHOW_MSG",
+      "title": "메시지 표시",
+      "description": "사용자에게 상태, 경고, 안내 메시지를 표시한다.",
+      "schemaFile": "schemas/SHOW_MSG.schema.json",
+      "metadataFile": "metadata/SHOW_MSG.meta.json"
+    }
+  ]
+}

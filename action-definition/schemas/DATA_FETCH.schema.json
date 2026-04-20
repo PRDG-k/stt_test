@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DATA_FETCH",
+  "type": "object",
+  "required": ["action", "target", "params"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "const": "DATA_FETCH"
+    },
+    "target": {
+      "type": "string",
+      "description": "데이터를 표시할 대상 영역 또는 컴포넌트",
+      "enum": ["realtime_chart"]
+    },
+    "params": {
+      "type": "object",
+      "required": ["device", "interval", "fields"],
+      "properties": {
+        "device": {
+          "type": "string",
+          "description": "조회 대상 장치 ID"
+        },
+        "interval": {
+          "type": "string",
+          "description": "조회 주기",
+          "enum": ["1s", "5s", "10s", "30s", "1m", "5m"]
+        },
+        "fields": {
+          "type": "array",
+          "description": "조회할 데이터 항목 목록",
+          "items": {
+            "type": "string",
+            "enum": ["voltage", "current", "power", "temperature"]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

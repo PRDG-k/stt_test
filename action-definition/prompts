@@ -1,0 +1,3 @@
+사용자 요청을 보고 가장 적절한 action 하나를 선택하라.
+선택한 action의 schema를 반드시 만족하는 JSON만 출력하라.
+metadata의 설명과 examples를 참고하되, 최종 출력에는 설명 필드를 포함하지 마라.

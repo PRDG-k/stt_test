@@ -1,0 +1,36 @@
+{
+  "action": "FILE_DOWNLOAD",
+  "title": "파일 다운로드",
+  "description": "리포트나 생성된 파일을 다운로드한다.",
+  "whenToUse": [
+    "엑셀 다운로드 요청",
+    "리포트 다운로드 요청",
+    "기간별 통계 파일 요청"
+  ],
+  "paramDescriptions": {
+    "fileType": "다운로드할 파일 형식",
+    "params.reportName": "리포트 표시 이름",
+    "params.period": "리포트 대상 기간",
+    "params.downloadUrl": "파일 다운로드 주소"
+  },
+  "examples": [
+    {
+      "input": "지난주 인버터 리포트를 엑셀로 다운로드하게 해줘",
+      "output": {
+        "action": "FILE_DOWNLOAD",
+        "fileType": "xlsx",
+        "params": {
+          "reportName": "Weekly_Inverter_Report",
+          "period": "2026-04-08_to_2026-04-14",
+          "downloadUrl": "https://api.yoursite.com/reports/gen_12345.xlsx"
+        }
+      }
+    }
+  ],
+  "llmHints": {
+    "notes": [
+      "downloadUrl은 보통 시스템이 생성한다.",
+      "사용자 발화만으로 URL을 만들 수 없으면 백엔드 응답값을 사용한다."
+    ]
+  }
+}

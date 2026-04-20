@@ -1,0 +1,13 @@
+services:
+  stt-engine:
+    build: .
+    container_name: stt-action-engine
+    ports:
+      - "8000:8000"
+    env_file:
+      - key.env
+    volumes:
+      - ./stt_actions.db:/app/stt_actions.db
+      - ./voicefile:/app/voicefile
+      - ./action-definition:/app/action-definition
+    restart: unless-stopped
