@@ -1,47 +1,57 @@
-# 통합 대시보드 API 연동 가이드
+# 통합 대시보드 API 연동 가이드 (프론트 STT 대응 버전)
 
-본 문서는 통합 대시보드 서버에서 음성 제어 엔진(STT-NLU)을 호출하고, 반환된 제어 명령을 파싱하여 실제 장비나 화면을 제어하는 방법을 설명합니다.
+본 문서는 통합 대시보드 서버 또는 프론트엔드 앱에서 음성 인식 결과를 바탕으로 제어 명령을 분석하고 처리하는 방법을 설명합니다. 
 
-## 1. 인증 (Authentication)
+> **참고**: 본 서버는 분석 및 제어 명령 생성 전용입니다. 인증(Authentication) 및 역할 기반 접근 제어(RBAC)는 통합 백엔드 서버에서 처리하므로, 본 API 호출 전 메인 시스템의 인증 절차를 따르십시오.
 
-모든 API 요청은 HTTP 헤더에 `X-API-Key`를 포함해야 합니다. 권한별 사용 가능한 키는 다음과 같습니다 (설정 파일에서 변경 가능).
+## 1. 연동 아키텍처 개요
 
-| 역할 (Role) | API Key (예시) | 허용 액션 |
-| :--- | :--- | :--- |
-| **ADMIN** | `admin-key-123` | 모든 액션 (제어, 조회, 다운로드 등) |
-| **OPERATOR** | `operator-key-456` | 장치 제어 및 데이터 조회 |
-| **VIEWER** | `viewer-key-789` | 데이터 조회 및 메시지 표시 전용 |
+프론트엔드에서 음성을 텍스트로 변환(STT)한 후, 해당 텍스트를 백엔드의 **NLU 분석 엔드포인트**로 전달하여 제어 명령 JSON을 받아가는 구조입니다.
+
+```text
+[Frontend] --(Voice)--> [STT 엔진] --(Text)--> [Backend API] --(Action JSON)--> [Frontend/Dashboard]
+```
 
 ---
 
 ## 2. 주요 API 엔드포인트
 
-### 2.1 텍스트 명령 분석 (`/api/intent`)
-이미 텍스트로 변환된 명령이나 챗봇 형태의 입력을 처리할 때 사용합니다.
+### 2.1 [권장] 텍스트 명령 분석 (`POST /api/intent`)
+프론트엔드에서 인식된 음성 텍스트를 분석하여 구조화된 액션 객체를 반환합니다.
 
-- **URL**: `POST /api/intent`
 - **Payload**:
   ```json
   {
     "text": "1번 장비 가동해줘",
-    "session_id": "user_session_001"
+    "session_id": "optional_session_uuid"
   }
   ```
 
-### 2.2 음성 파일 분석 (`/api/upload-audio`)
-마이크로 녹음된 오디오 파일(.m4a, .wav 등)을 직접 업로드하여 분석할 때 사용합니다.
+### 2.2 음성 파일 직접 업로드 (`POST /api/upload-audio`)
+백엔드의 STT 기능을 이용해야 하는 경우 오디오 파일을 직접 전송할 수 있습니다. 
 
-- **URL**: `POST /api/upload-audio`
 - **Content-Type**: `multipart/form-data`
 - **Body**: `file` (Binary)
 
+### 2.3 피드백 및 결과 학습 (`POST /api/feedback`)
+분석 결과가 정확했는지 피드백을 보내 엔진의 정확도를 실시간으로 향상시킵니다. 
+
+- **Payload**:
+  ```json
+  {
+    "log_id": 123,
+    "is_correct": true,
+    "corrected_intent": null
+  }
+  ```
+
 ---
 
-## 3. 응답 구조 및 파싱 방법
+## 3. 응답 파싱 및 제어 구현 가이드
 
-모든 정상 응답은 `NLUResponse` 형태의 JSON 객체입니다.
+백엔드는 `action-definition`에 정의된 스키마에 따라 검증된 액션만 반환합니다.
 
-### 응답 객체 (JSON)
+### 응답 예시 (DEVICE_CONTROL)
 ```json
 {
   "transcript": "1번 장비 가동해줘",
@@ -57,57 +67,13 @@
     }
   ],
   "requires_confirmation": false,
-  "session_id": "user_session_001"
+  "session_id": "default",
+  "log_id": 123
 }
 ```
 
-### 파싱 로직 가이드
-1.  **`candidates` 배열 확인**: 
-    - 배열이 비어있다면, 엔진이 의도를 파악하지 못했거나 권한이 없는 경우입니다. `message`를 사용자에게 노출하십시오.
-2.  **`action` 필드 분기**:
-    - `candidates[0].action` 값을 읽어 어떤 동작인지 파악합니다. (예: `DEVICE_CONTROL`, `DATA_FETCH` 등)
-3.  **스키마 기반 처리**:
-    - 각 액션에 따른 세부 데이터는 `params` 또는 추가 필드에 들어있습니다. 이 구조는 `action-definition/schemas/`에 정의된 JSON 스키마를 따릅니다.
-4.  **확인 필요 여부 (`requires_confirmation`)**:
-    - `true`인 경우, 즉시 실행하지 말고 사용자에게 "정말 수행할까요?"와 같은 UI 팝업을 띄우는 것을 권장합니다.
-
----
-
-## 4. 호출 예시 (Python / JavaScript)
-
-### Python (requests 사용)
-```python
-import requests
-
-url = "http://engine-server:8000/api/intent"
-headers = {"X-API-Key": "admin-key-123"}
-data = {"text": "실시간 전압 보여줘"}
-
-response = requests.post(url, json=data, headers=headers)
-result = response.json()
-
-if result["candidates"]:
-    action = result["candidates"][0]
-    if action["action"] == "DATA_FETCH":
-        print(f"조회 대상: {action['params']['fields']}")
-```
-
-### JavaScript (Fetch API 사용)
-```javascript
-const response = await fetch('http://engine-server:8000/api/intent', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'X-API-Key': 'admin-key-123'
-  },
-  body: JSON.stringify({ text: '1번 장비 재부팅' })
-});
-
-const data = await response.json();
-if (data.candidates.length > 0) {
-  // 대시보드 제어 로직 실행
-  executeAction(data.candidates[0]);
-} else {
-  alert(data.message); // 권한 부족 또는 인식 불가 메시지
-}
-```
+### 처리 로직 핵심
+1.  **`candidates` 유무 확인**: 배열이 비어있다면 권한이 없거나 분석에 실패한 것입니다. `message` 필드의 내용을 사용자에게 노출하십시오.
+2.  **`action` 분기 처리**: `candidates[0].action` 값(`MOVE_PAGE`, `DEVICE_CONTROL` 등)을 기준으로 대시보드 내부 제어 로직을 실행합니다.
+3.  **`requires_confirmation` 확인**: 이 값이 `true`인 경우, 사용자에게 확인 팝업을 띄운 후 승인을 얻었을 때 실제 제어를 실행하는 것을 권장합니다.
+4.  **학습(Feedback) 수행**: 제어가 성공적으로 승인/실행되면 `/api/feedback`을 호출하여 `is_correct: true`를 보내십시오. 향후 유사한 명령에 대한 분석 정확도가 향상됩니다.

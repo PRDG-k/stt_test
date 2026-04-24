@@ -15,15 +15,19 @@
     },
     "params": {
       "type": "object",
-      "required": ["reportName", "period", "downloadUrl"],
+      "required": ["reportName", "start", "end", "downloadUrl"],
       "properties": {
         "reportName": {
           "type": "string",
           "description": "리포트 이름"
         },
-        "period": {
+        "start": {
           "type": "string",
-          "description": "조회 기간 문자열"
+          "description": "조회 시작 일시 (형식: YYYY-mm-dd hh:MM)"
+        },
+        "end": {
+          "type": "string",
+          "description": "조회 종료 일시 (형식: YYYY-mm-dd hh:MM)"
         },
         "downloadUrl": {
           "type": "string",

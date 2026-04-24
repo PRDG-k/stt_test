@@ -10,7 +10,7 @@
   "paramDescriptions": {
     "projectId": "프로젝트 식별자. 멀티 프로젝트 환경에서 사용한다.",
     "url": "이동할 페이지 경로",
-    "params.sId": "화면 또는 섹션 식별자"
+    "params.slId": "발전소 식별자"
   },
   "examples": [
     {
@@ -18,9 +18,9 @@
       "output": {
         "action": "MOVE_PAGE",
         "projectId": "1",
-        "url": "/dashboard.html",
+        "url": "/frontend/dashboard.html",
         "params": {
-          "sId": "1"
+          "slId": "1"
         }
       }
     }
@@ -28,7 +28,7 @@
   "llmHints": {
     "notes": [
       "url은 시스템에서 허용된 경로만 사용한다.",
-      "sId는 URL과 맞는 화면 ID를 넣는다."
+      "slId는 사용자가 지정한 발전소 번호를 넣거나 ''문자열로 둔다."
     ]
   }
 }

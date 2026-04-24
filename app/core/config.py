@@ -3,6 +3,8 @@ from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 from openai import OpenAI
 
+# Load multiple env files if they exist
+load_dotenv(".env")
 load_dotenv("key.env")
 
 class Settings(BaseSettings):
@@ -12,21 +14,24 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./stt_actions.db"
     ALLOWED_ORIGINS: list[str] = ["*"] 
     ALLOWED_DOMAINS: list[str] = ["www.google.com", "github.com", "naver.com"]
-    
-    # Simple RBAC: API Key -> Role mapping
-    # Roles: ADMIN (all permissions), OPERATOR (control + view), VIEWER (view only)
-    API_KEYS: dict[str, str] = {
-        "admin-key-123": "ADMIN",
-        "operator-key-456": "OPERATOR",
-        "viewer-key-789": "VIEWER"
-    }
-    
-    # Permissions: Role -> List of allowed Actions
-    ROLE_PERMISSIONS: dict[str, list[str]] = {
-        "ADMIN": ["MOVE_PAGE", "DATA_FETCH", "FILE_DOWNLOAD", "DEVICE_CONTROL", "SHOW_MSG"],
-        "OPERATOR": ["MOVE_PAGE", "DATA_FETCH", "DEVICE_CONTROL", "SHOW_MSG"],
-        "VIEWER": ["MOVE_PAGE", "DATA_FETCH", "SHOW_MSG"]
-    }
+
+    # Postgres Settings for Checkpointing
+    PG_DB_HOST: str = os.getenv("PG_DB_HOST", "localhost")
+    PG_DB_PORT: str = os.getenv("PG_DB_PORT", "5432")
+    PG_DB_NAME: str = os.getenv("PG_DB_NAME", "postgres")
+    PG_DB_USER: str = os.getenv("PG_DB_USER", "postgres")
+    PG_DB_PASSWORD: str = os.getenv("PG_DB_PASSWORD", "")
+    PG_CHECKPOINT_SCHEMA: str = os.getenv("PG_CHECKPOINT_SCHEMA", "STT_ckpt")
+
+    @property
+    def postgres_dsn(self) -> str:
+        return (
+                f"host={os.environ['PG_DB_HOST']} "
+                f"port={os.environ['PG_DB_PORT']} "
+                f"dbname={os.environ['PG_DB_NAME']} "
+                f"user={os.environ['PG_DB_USER']} "
+                f"password={os.environ['PG_DB_PASSWORD']}"
+            )
 
 settings = Settings()
 

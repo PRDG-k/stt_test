@@ -10,4 +10,5 @@ services:
       - ./stt_actions.db:/app/stt_actions.db
       - ./voicefile:/app/voicefile
       - ./action-definition:/app/action-definition
+      - ./app:/app/app
     restart: unless-stopped

@@ -1,84 +1,75 @@
 import os
+import logging
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
 from app.services.stt import transcribe_audio
 from app.services.nlu import parse_intent
-from app.models.schemas import STTResponse, ActionIntent, CommandRequest, NLUResponse
-from app.models.database import log_action, get_session_history, log_conversation
-from app.core.security import get_current_user_role
+from app.models.schemas import STTResponse, ActionIntent, CommandRequest, NLUResponse, FeedbackRequest
+from app.models.database import log_action, get_session_history, log_conversation, update_action_feedback
 from app.core.config import settings
+from app.services.action_manager import action_manager
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-def check_rbac(role: str, response: NLUResponse) -> NLUResponse:
+@router.get("/actions")
+async def get_available_actions():
     """
-    NLU 결과의 candidates 중 현재 역할(Role)이 수행할 수 없는 액션이 포함되어 있는지 검사합니다.
+    현재 시스템에 등록된 모든 액션 레지스트리 정보를 반환합니다.
     """
-    allowed_actions = settings.ROLE_PERMISSIONS.get(role, [])
-    filtered_candidates = []
-    
-    for candidate in response.candidates:
-        action_name = candidate.get("action")
-        if action_name in allowed_actions:
-            filtered_candidates.append(candidate)
-        else:
-            print(f"[RBAC WARNING] Role '{role}' attempted unauthorized action: {action_name}")
-    
-    if response.candidates and not filtered_candidates:
-        response.message = f"권한 오류: 사용자의 권한({role})으로는 요청하신 작업을 수행할 수 없습니다."
-        response.candidates = []
-    else:
-        response.candidates = filtered_candidates
-        
-    return response
+    registry = action_manager.get_registry()
+    return registry
 
 @router.post("/intent", response_model=NLUResponse)
 async def process_intent_endpoint(
-    data: CommandRequest, 
-    role: str = Depends(get_current_user_role)
+    data: CommandRequest
 ):
-    sid = data.session_id or "default"
+    session_id = data.session_id or "tmp_session"
+    logger.info(f"[Session ID: {session_id}] Processing text intent: {data.text}")
     try:
         # 1. DB에서 세션 히스토리 가져오기
-        history = get_session_history(sid)
-        
+        # history = get_session_history(session_id)
+
         # 2. 사용자 입력 로깅
-        log_conversation(sid, "user", data.text)
+        log_conversation(session_id, "user", data.text)
         
-        # 3. NLU 분석
-        response = await parse_intent(data.text, history)
-        response.session_id = sid
+        # 3. NLU 분석 (LangGraph 체크포인터가 히스토리를 자동 관리함)
+        response = await parse_intent(text=data.text, session_id=session_id)
+        response.session_id = session_id
         
-        # 4. RBAC 검사
-        response = check_rbac(role, response)
+        # 4. 어시스턴트 응답 로깅
+        log_conversation(session_id, "assistant", response.message)
         
-        # 5. 어시스턴트 응답 로깅
-        log_conversation(sid, "assistant", response.message)
+        # 5. 액션 시도 로깅 및 log_id 획득
+        log_entry = log_action(session_id, data.text, response.model_dump())
+        response.log_id = log_entry.id
         
-        # 6. 액션 시도 로깅
-        log_action(sid, data.text, response.model_dump())
-        
+        logger.info(f"[Session ID: {session_id}] Successfully processed intent. Log ID: {response.log_id}")
         return response
     except Exception as e:
+        logger.error(f"[Session ID: {session_id}] Error processing intent: {e}", exc_info=True)
         return NLUResponse(
             transcript=data.text,
             message=f"오류가 발생했습니다: {str(e)}",
             candidates=[],
             requires_confirmation=False,
-            session_id=sid
+            session_id=session_id
         )
 
 @router.post("/upload-audio", response_model=NLUResponse)
 async def process_audio(
-    file: UploadFile = File(...), 
-    role: str = Depends(get_current_user_role)
+    file: UploadFile = File(...)
 ):
     file_location = f"temp_{file.filename}"
     with open(file_location, "wb+") as file_object:
         file_object.write(await file.read())
     
-    sid = "audio_session"
+    session_id = "audio_session"
+    logger.info(f"[Session ID: {session_id}] Processing audio upload: {file.filename}")
     try:
         transcript = await transcribe_audio(file_location)
+        logger.info(f"[Session ID: {session_id}] Transcribed text: {transcript}")
         
         if transcript.startswith("["):
             return NLUResponse(
@@ -86,26 +77,26 @@ async def process_audio(
                 message=transcript,
                 candidates=[],
                 requires_confirmation=False,
-                session_id=sid
+                session_id=session_id
             )
 
-        response = await parse_intent(transcript)
-        response.session_id = sid
+        response = await parse_intent(transcript, session_id=session_id)
+        response.session_id = session_id
         
-        # RBAC 검사
-        response = check_rbac(role, response)
+        log_entry = log_action(session_id, transcript, response.model_dump())
+        response.log_id = log_entry.id
         
-        log_action(sid, transcript, response.model_dump())
-        
+        logger.info(f"[Session ID: {session_id}] Successfully processed audio. Log ID: {response.log_id}")
         return response
         
     except Exception as e:
+        logger.error(f"[Session ID: {session_id}] Error processing audio: {e}", exc_info=True)
         return NLUResponse(
             transcript="[처리 오류]",
             message=f"오류가 발생했습니다: {str(e)}",
             candidates=[],
             requires_confirmation=False,
-            session_id=sid
+            session_id=session_id
         )
     finally:
         if os.path.exists(file_location):
@@ -113,24 +104,39 @@ async def process_audio(
 
 @router.post("/mock-command", response_model=NLUResponse)
 async def mock_command(
-    data: CommandRequest, 
-    role: str = Depends(get_current_user_role)
+    data: CommandRequest
 ):
-    sid = data.session_id or "mock_session"
+    session_id = data.session_id or "mock_session"
+    logger.info(f"[Session ID: {session_id}] Processing mock command: {data.text}")
     try:
-        response = await parse_intent(data.text)
-        response.session_id = sid
+        history = get_session_history(session_id)
+
+        response = await parse_intent(text=data.text, session_id=session_id, history=history)
+        response.session_id = session_id
         
-        # RBAC 검사
-        response = check_rbac(role, response)
+        log_entry = log_action(session_id, data.text, response.model_dump())
+        response.log_id = log_entry.id
         
-        log_action(sid, data.text, response.model_dump())
+        logger.info(f"[Session ID: {session_id}] Successfully processed mock command. Log ID: {response.log_id}")
         return response
     except Exception as e:
+        logger.error(f"[Session ID: {session_id}] Error processing mock command: {e}", exc_info=True)
         return NLUResponse(
             transcript=data.text,
             message=f"오류가 발생했습니다: {str(e)}",
             candidates=[],
             requires_confirmation=False,
-            session_id=sid
+            session_id=session_id
         )
+
+@router.post("/feedback")
+async def receive_feedback(
+    data: FeedbackRequest
+):
+    logger.info(f"Received feedback for Log ID: {data.log_id}, Correct: {data.is_correct}")
+    success = update_action_feedback(data.log_id, data.is_correct, data.corrected_intent)
+    if success:
+        return {"message": "피드백이 성공적으로 기록되었습니다."}
+    else:
+        logger.warning(f"Failed to find log entry for feedback. Log ID: {data.log_id}")
+        raise HTTPException(status_code=404, detail="해당 로그를 찾을 수 없습니다.")

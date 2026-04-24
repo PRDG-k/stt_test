@@ -1,17 +1,27 @@
 import os
 import argparse
 import uvicorn
-from fastapi import FastAPI
+import logging
+import time
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints import router as api_router
+from app.api.health import router as health_router
 from app.models.database import init_db
 
-# 1. DB 초기화
+# 1. 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("api_logger")
+
+# 2. DB 초기화
 init_db()
 
-# 2. 파라미터 파싱
+# 3. 파라미터 파싱
 parser = argparse.ArgumentParser()
 parser.add_argument("--test", action="store_true", help="Enable test mode")
 parser.add_argument("--https", action="store_true", help="Enable HTTPS with self-signed certificate")
@@ -20,7 +30,26 @@ args, _ = parser.parse_known_args()
 app = FastAPI(title="STT Action API")
 app.state.test_mode = args.test
 
-# 3. CORS 설정 (내부망 접근 허용)
+# 4. Request-Response 로깅 미들웨어
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    
+    # Request 로깅 (Path, Method)
+    path = request.url.path
+    method = request.method
+    logger.info(f"Incoming request: {method} {path}")
+    
+    response = await call_next(request)
+    
+    # Response 로깅 (Status Code, Duration)
+    process_time = (time.time() - start_time) * 1000
+    formatted_process_time = "{0:.2f}".format(process_time)
+    logger.info(f"Response: {response.status_code} (Completed in {formatted_process_time}ms)")
+    
+    return response
+
+# 5. CORS 설정 (내부망 접근 허용)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,10 +58,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 4. API 라우터 등록
+# 6. API 라우터 등록
 app.include_router(api_router, prefix="/api")
+app.include_router(health_router, prefix="/api", tags=["Monitoring"])
 
-# 5. SSL 인증서 자동 생성 함수
+# 7. SSL 인증서 자동 생성 함수
 def get_ssl_context():
     cert_file = "cert.pem"
     key_file = "key.pem"
@@ -90,7 +120,8 @@ if __name__ == "__main__":
         "app": "app.main:app",
         "host": "0.0.0.0",
         "port": 8000,
-        "reload": True
+        "reload": True,
+        "reload_dirs": ["app"]
     }
     
     if args.https:

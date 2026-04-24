@@ -1,17 +1,7 @@
 # --- Stage 1: Build & Sync ---
-FROM ghcr.io/astral-sh/uv:latest AS builder
+FROM python:3.12-slim AS builder
 
-WORKDIR /app
-
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
-# Copy only lock and pyproject to cache layers
-COPY pyproject.toml uv.lock ./
-# Install dependencies (frozen)
-RUN uv sync --frozen --no-dev
-
-# --- Stage 2: Runtime ---
-FROM python:3.12-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
@@ -21,11 +11,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy uv for runtime usage (optional but helpful)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY pyproject.toml uv.lock ./
+RUN uv pip install --system -r pyproject.toml
 
-# Copy dependencies and source code
-COPY --from=builder /app/.venv /app/.venv
 COPY . .
 
 # Set environment variables

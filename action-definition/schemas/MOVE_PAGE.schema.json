@@ -18,9 +18,9 @@
     },
     "params": {
       "type": "object",
-      "required": ["sId"],
+      "required": ["slId"],
       "properties": {
-        "sId": {
+        "slId": {
           "type": "string",
           "description": "화면 또는 섹션 ID"
         }

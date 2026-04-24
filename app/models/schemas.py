@@ -1,6 +1,70 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union, Literal
 from datetime import datetime
+from enum import Enum
+
+# --- Base Action Model ---
+
+class BaseAction(BaseModel):
+    requires_confirmation: bool = Field(default=True, description="사용자 확인 필요 여부")
+
+# --- Action Parameter Models ---
+
+class DataFetchParams(BaseModel):
+    device: str
+    interval: Literal["1s", "5s", "10s", "30s", "1m", "5m"]
+    fields: List[Literal["voltage", "current", "power", "temperature"]]
+
+class DataFetchAction(BaseAction):
+    action: Literal["DATA_FETCH"]
+    target: Literal["realtime_chart"]
+    params: DataFetchParams
+
+class DeviceControlParams(BaseModel):
+    device: str
+    command: Literal["REBOOT", "START", "STOP", "RESET"]
+    message: Optional[str] = None
+
+class DeviceControlAction(BaseAction):
+    action: Literal["DEVICE_CONTROL"]
+    status: Optional[Literal["success", "fail", "pending"]] = None
+    params: DeviceControlParams
+
+class FileDownloadParams(BaseModel):
+    reportName: str
+    start: str
+    end: str
+    downloadUrl: str
+
+class FileDownloadAction(BaseAction):
+    action: Literal["FILE_DOWNLOAD"]
+    fileType: Literal["xlsx", "csv", "pdf"]
+    params: FileDownloadParams
+
+class MovePageParams(BaseModel):
+    slId: Optional[str]
+
+class MovePageAction(BaseAction):
+    action: Literal["MOVE_PAGE"]
+    projectId: Optional[str] = None
+    url: str
+    params: MovePageParams
+
+class ShowMsgAction(BaseAction):
+    action: Literal["SHOW_MSG"]
+    type: Literal["info", "success", "warning", "error"]
+    content: str
+
+# Union type for all validated actions
+ValidatedAction = Union[
+    DataFetchAction, 
+    DeviceControlAction, 
+    FileDownloadAction, 
+    MovePageAction, 
+    ShowMsgAction
+]
+
+# --- Existing Models ---
 
 class ActionIntent(BaseModel):
     action: str
@@ -18,6 +82,12 @@ class NLUResponse(BaseModel):
     candidates: List[Dict[str, Any]] = Field(default_factory=list, description="List of proposed actions to take")
     requires_confirmation: bool = Field(default=True, description="True if the user must pick a candidate or confirm")
     session_id: str
+    log_id: Optional[int] = None
+
+class FeedbackRequest(BaseModel):
+    log_id: int
+    is_correct: bool
+    corrected_intent: Optional[Dict[str, Any]] = None
 
 class ActionLog(BaseModel):
     id: Optional[int] = None

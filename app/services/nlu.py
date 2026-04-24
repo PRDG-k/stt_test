@@ -5,87 +5,58 @@ from functools import lru_cache
 from jinja2 import Template
 from app.core.config import settings, vllm_client
 from app.models.schemas import NLUResponse
+from app.models.database import get_similar_cases
+from app.services.action_manager import action_manager
 from typing import List, Optional, Dict, Any
+from langchain_core.messages import HumanMessage, AIMessage
+from app.services.workflow import create_nlu_graph
+from app.services.memory import MemoryManager, MemoryState
+from app.services.nlu_core import _call_vllm, _extract_params, load_resource, ACTION_SELECT_PROMPT, PARAM_EXTRACT_PROMPT
 
-# 파일 로드 도우미 (캐싱 적용)
-@lru_cache(maxsize=10)
-def load_resource(path: str) -> str:
-    with open(path, 'r', encoding='utf-8') as f:
-        return f.read()
+# 글로벌 변수로 관리
+_nlu_app = None
 
-# 액션 스키마 로드 (캐싱 적용)
-@lru_cache(maxsize=1)
-def load_action_schemas() -> str:
-    schema_dir = 'action-definition/schemas'
-    schemas = []
-    if os.path.exists(schema_dir):
-        # 파일 목록을 정렬하여 캐시 일관성 유지
-        filenames = sorted(os.listdir(schema_dir))
-        for filename in filenames:
-            if filename.endswith('.json'):
-                path = os.path.join(schema_dir, filename)
-                schemas.append(load_resource(path))
-    return "\n---\n".join(schemas)
+async def get_nlu_app():
+    global _nlu_app
+    if _nlu_app is None:
+        # 비동기로 체크포인터 초기화 및 그래프 컴파일
+        checkpointer = await MemoryManager.get_checkpointer()
+        _nlu_app = create_nlu_graph().compile(checkpointer=checkpointer)
+    return _nlu_app
 
-async def parse_intent(text: str, history: str = "No previous history.") -> NLUResponse:
-    # 1. 스키마 동적 로드 (캐시된 결과 반환)
-    action_schemas = load_action_schemas()
+async def parse_intent(text: str, session_id: str = "default") -> NLUResponse:
+    # 워크플로우 인스턴스 획득
+    nlu_app = await get_nlu_app()
+
+    # LangGraph 워크플로우 실행
+    config = {"configurable": {"thread_id": session_id}}
+
+    # 초기 상태 설정 (이전 대화 기록 및 행동 계획은 체크포인터가 자동으로 불러옴)
+    initial_input = {
+        "text": text,
+        "session_id": session_id,
+        "messages": [HumanMessage(content=text)]
+    }
+
+    result = await nlu_app.ainvoke(initial_input, config=config)
+
+    # 실행 완료 후 AI 메시지 상태 및 행동 계획 업데이트
+    final_ai_msg = result["final_message"] or "이해했습니다."
     
-    # 2. 프롬프트 템플릿 로드 (캐시된 결과 반환)
-    prompt_template_str = load_resource('app/core/prompts/system_prompt.md')
-    
-    # 3. 프롬프트 렌더링
-    template = Template(prompt_template_str)
-    prompt = template.render(
-        tools_yaml=action_schemas,
-        history=history,
-        text=text
-    )
-
-    # 4. vLLM 기반 분석 (중앙화된 vllm_client 사용)
-    try:
-        response = vllm_client.chat.completions.create(
-            model=settings.VLLM_MODEL_NAME,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.0,
-            max_tokens=1000
-        )
-        
-        raw_content = response.choices[0].message.content.strip()
-        print(f"[NLU DEBUG] Raw Content: {repr(raw_content)}")
-
-        # JSON 추출
-        json_match = re.search(r'(\{.*\})', raw_content, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1)
-            json_str = re.sub(r'[\x00-\x1F\x7F]', '', json_str)
-            
-            data = json.loads(json_str)
-            
-            return NLUResponse(
-                transcript=text,
-                message=data.get("message", "이해했습니다."),
-                candidates=data.get("candidates", []),
-                requires_confirmation=data.get("requires_confirmation", True),
-                session_id="placeholder"
-            )
-            
-    except Exception as e:
-        print(f"[NLU ERROR] {e}")
-        return NLUResponse(
-            transcript=text,
-            message=f"명령 분석 중 오류가 발생했습니다: {str(e)}",
-            candidates=[],
-            requires_confirmation=False,
-            session_id="placeholder"
-        )
+    # LangGraph 상태 업데이트 (메시지 이력 + 행동 계획)
+    # Note: selected_actions와 candidates는 add_messages와 같은 Reducer가 없으므로 
+    # aupdate_state를 통해 덮어씌워짐. (메시지는 HumanMessage + AIMessage 누적)
+    await nlu_app.aupdate_state(config, {
+        "messages": [AIMessage(content=final_ai_msg)],
+        "selected_actions": result["selected_actions"],
+        "candidates": result["candidates"]
+    })
 
     return NLUResponse(
         transcript=text,
-        message="명령을 이해하지 못했습니다. 다시 말씀해 주세요.",
-        candidates=[],
-        requires_confirmation=False,
-        session_id="placeholder"
+        message=final_ai_msg,
+        candidates=result["candidates"],
+        requires_confirmation=result["is_fallback"] or any(c.get("requires_confirmation", True) for c in result["candidates"]),
+        session_id=session_id
     )
+
