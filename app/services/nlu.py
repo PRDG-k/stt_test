@@ -24,7 +24,13 @@ async def get_nlu_app():
         _nlu_app = create_nlu_graph().compile(checkpointer=checkpointer)
     return _nlu_app
 
-async def parse_intent(text: str, session_id: str = "default") -> NLUResponse:
+async def parse_intent(
+    text: str, 
+    session_id: str = "default",
+    project_id: Optional[str] = None,
+    sl_id: Optional[str] = None,
+    selected_candidate: Optional[Dict[str, Any]] = None
+) -> NLUResponse:
     # 워크플로우 인스턴스 획득
     nlu_app = await get_nlu_app()
 
@@ -35,8 +41,14 @@ async def parse_intent(text: str, session_id: str = "default") -> NLUResponse:
     initial_input = {
         "text": text,
         "session_id": session_id,
+        "project_id": project_id,
+        "sl_id": sl_id,
         "messages": [HumanMessage(content=text)]
     }
+    
+    if selected_candidate:
+        initial_input["selected_actions"] = [selected_candidate.get("action")]
+        initial_input["candidates"] = [selected_candidate]
 
     result = await nlu_app.ainvoke(initial_input, config=config)
 

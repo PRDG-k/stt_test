@@ -9,12 +9,26 @@ from app.services.action_manager import action_manager
 # 프롬프트 경로 설정
 ACTION_SELECT_PROMPT = 'app/core/prompts/action_selection.md'
 PARAM_EXTRACT_PROMPT = 'app/core/prompts/parameter_extraction.md'
+MESSAGE_VALIDATION_PROMPT = 'app/core/prompts/message_validation.md'
 
 # 파일 로드 도우미 (캐싱 적용)
 @lru_cache(maxsize=10)
 def load_resource(path: str) -> str:
     with open(path, 'r', encoding='utf-8') as f:
         return f.read()
+
+async def _call_vllm_text(prompt: str) -> Optional[str]:
+    try:
+        response = vllm_client.chat.completions.create(
+            model=settings.VLLM_MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=1000
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"[VLLM Text Error] {e}")
+    return None
 
 async def _call_vllm(prompt: str) -> Optional[Dict[str, Any]]:
     try:
@@ -36,7 +50,7 @@ async def _call_vllm(prompt: str) -> Optional[Dict[str, Any]]:
         print(f"[VLLM Error] {e}")
     return None
 
-async def _extract_params(action_name: str, text: str, dynamic_context: str, current_action_obj: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+async def _extract_params(action_name: str, text: str, dynamic_context: str, current_action_obj: Optional[Dict[str, Any]] = None, history: str = "") -> Optional[Dict[str, Any]]:
     from jinja2 import Template
     schema = action_manager.load_schema(action_name)
     if not schema:
@@ -73,6 +87,7 @@ async def _extract_params(action_name: str, text: str, dynamic_context: str, cur
         dynamic_context=dynamic_context,
         action_name=action_name,
         text=text,
+        history=history,
         current_params=json.dumps(flat_current_params, indent=2, ensure_ascii=False)
     )
     
@@ -119,3 +134,17 @@ async def _extract_params(action_name: str, text: str, dynamic_context: str, cur
             full_action[prop] = val
                 
     return full_action
+
+async def _validate_message(text: str, final_message: str, candidates: Optional[List[Dict[str, Any]]] = None) -> str:
+    from jinja2 import Template
+    template_str = load_resource(MESSAGE_VALIDATION_PROMPT)
+    prompt = Template(template_str).render(
+        text=text,
+        final_message=final_message,
+        candidates_json=json.dumps(candidates, ensure_ascii=False, indent=2) if candidates else "[]"
+    )
+    
+    print(f"[NLU DEBUG] Message Validation Prompt")
+    validated_text = await _call_vllm_text(prompt)
+    
+    return validated_text or final_message

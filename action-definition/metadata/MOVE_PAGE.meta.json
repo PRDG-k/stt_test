@@ -14,13 +14,12 @@
   },
   "examples": [
     {
-      "input": "대시보드 화면으로 이동해줘",
+      "input": "대시보드로 가줘",
       "output": {
         "action": "MOVE_PAGE",
-        "projectId": "1",
         "url": "/frontend/dashboard.html",
         "params": {
-          "slId": "1"
+          "slId": ""
         }
       }
     }
@@ -28,6 +27,7 @@
   "llmHints": {
     "notes": [
       "url은 시스템에서 허용된 경로만 사용한다.",
+      "사용자가 구체적인 화면명을 말하지 않고 '보고서', '화면' 등 카테고리만 말할 경우 url에 임의의 값을 채우지 말고 null로 두어 추가 질문을 유도한다.",
       "slId는 사용자가 지정한 발전소 번호를 넣거나 ''문자열로 둔다."
     ]
   }

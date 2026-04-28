@@ -12,7 +12,7 @@ class BaseAction(BaseModel):
 
 class DataFetchParams(BaseModel):
     device: str
-    interval: Literal["1s", "5s", "10s", "30s", "1m", "5m"]
+    interval: Literal["1s", "5s", "10s", "30s", "1m", "5m", "1h"]
     fields: List[Literal["voltage", "current", "power", "temperature"]]
 
 class DataFetchAction(BaseAction):
@@ -105,3 +105,6 @@ class STTResponse(BaseModel):
 class CommandRequest(BaseModel):
     text: str
     session_id: Optional[str] = None
+    projectId: Optional[str] = None
+    slId: Optional[str] = None
+    selected_candidate: Optional[Dict[str, Any]] = None
