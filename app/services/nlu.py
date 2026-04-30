@@ -11,7 +11,6 @@ from typing import List, Optional, Dict, Any
 from langchain_core.messages import HumanMessage, AIMessage
 from app.services.workflow import create_nlu_graph
 from app.services.memory import MemoryManager, MemoryState
-from app.services.nlu_core import _call_vllm, _extract_params, load_resource, ACTION_SELECT_PROMPT, PARAM_EXTRACT_PROMPT
 
 # 글로벌 변수로 관리
 _nlu_app = None
@@ -26,9 +25,8 @@ async def get_nlu_app():
 
 async def parse_intent(
     text: str, 
-    session_id: str = "default",
+    session_id: str = "default_user",
     project_id: Optional[str] = None,
-    sl_id: Optional[str] = None,
     selected_candidate: Optional[Dict[str, Any]] = None
 ) -> NLUResponse:
     # 워크플로우 인스턴스 획득
@@ -42,7 +40,6 @@ async def parse_intent(
         "text": text,
         "session_id": session_id,
         "project_id": project_id,
-        "sl_id": sl_id,
         "messages": [HumanMessage(content=text)]
     }
     
@@ -56,8 +53,6 @@ async def parse_intent(
     final_ai_msg = result["final_message"] or "이해했습니다."
     
     # LangGraph 상태 업데이트 (메시지 이력 + 행동 계획)
-    # Note: selected_actions와 candidates는 add_messages와 같은 Reducer가 없으므로 
-    # aupdate_state를 통해 덮어씌워짐. (메시지는 HumanMessage + AIMessage 누적)
     await nlu_app.aupdate_state(config, {
         "messages": [AIMessage(content=final_ai_msg)],
         "selected_actions": result["selected_actions"],

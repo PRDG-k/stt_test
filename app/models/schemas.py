@@ -104,7 +104,5 @@ class STTResponse(BaseModel):
 
 class CommandRequest(BaseModel):
     text: str
-    session_id: Optional[str] = None
     projectId: Optional[str] = None
-    slId: Optional[str] = None
     selected_candidate: Optional[Dict[str, Any]] = None

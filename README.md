@@ -57,12 +57,15 @@
   ```json
   {
     "text": "세금 보고서 엑셀 다운로드",
-    "session_id": "sess_12345",
-    "projectId": "1",
-    "slId": "SL-01",
+    "projectId": "1001",
+    "timestamp": "DateConst.get_stamp_method()",
     "selected_candidate": null
   }
   ```
+- **필드 설명**:
+  - `text`: 사용자 입력 문자열 (필수)
+  - `selected_candidate`: (Optional) 시스템이 제안한 후보군 중 사용자가 선택한 객체. 포함 시 서버는 의도 분석 단계를 건너뛰고 해당 후보를 즉시 확정합니다.
+
 - **Response (200 OK)**:
   ```json
   {
@@ -71,12 +74,10 @@
     "candidates": [{
       "action": "FILE_DOWNLOAD",
       "requires_confirmation": true,
-      "params": { ... },
+      "parameter": { ... },
       "parameter_candidates": { ... }
     }],
     "requires_confirmation": true,
-    "session_id": "sess_12345",
-    "log_id": 101
   }
   ```
 - **Error (400/500)**:
@@ -84,8 +85,8 @@
   { "detail": "오류 발생 사유" }
   ```
 
-### 4.2 POST /api/upload-audio
-음성 파일을 업로드하여 텍스트로 변환 후 액션을 분석합니다.
+### ~4.2 POST /api/upload-audio~
+음성 파일을 업로드하여 텍스트로 변환 후 액션을 분석합니다. ( 미 사 용 )
 
 - **Method**: `POST`
 - **Header**: `Content-Type: multipart/form-data`
@@ -98,6 +99,20 @@
 
 ### 4.3 POST /api/feedback
 사용자가 선택한 액션에 대한 피드백을 전달하여 모델 정확도를 향상시킵니다.
+
+- **Method**: `POST`
+- **Request Body**:
+  ```json
+  {
+    "log_id": 101,
+    "is_correct": false,
+    "corrected_intent": { "action": "FILE_DOWNLOAD", "params": { ... } }
+  }
+  ```
+- **필드 설명**:
+  - `log_id`: 피드백 대상이 되는 NLU 결과의 ID (필수)
+  - `is_correct`: 제안된 결과가 올바른지 여부 (필수)
+  - `corrected_intent`: (Optional) `is_correct`가 `false`일 때, 사용자가 의도했던 올바른 액션 객체. 향후 유사 사례 검색을 통한 자동 보정에 활용됩니다.
 
 - **Method**: `POST`
 - **Header**: `Content-Type: application/json`
@@ -116,6 +131,18 @@
 현재 시스템에 등록된 모든 액션 레지스트리 정보를 반환합니다.
 - **Method**: `GET`
 - **Response**: `{"version": "1.0.0", "actions": [...]}`
+
+### 4.5 GET /api/ping
+vLLM 서버와의 통신 상태 및 지연 시간(Latency)을 점검합니다.
+- **Method**: `GET`
+- **Response (200 OK)**:
+  ```json
+  {
+    "result": "pong",
+    "vllm_status": "connected",
+    "latency_ms": "15.42ms"
+  }
+  ```
 
 ---
 

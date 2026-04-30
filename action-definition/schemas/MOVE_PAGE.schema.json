@@ -10,7 +10,7 @@
     },
     "projectId": {
       "type": "string",
-      "description": "프로젝트 식별자"
+      "description": "프로젝트 식별자 (필요 시 루트에 명시)"
     },
     "url": {
       "type": "string",
@@ -18,14 +18,9 @@
     },
     "params": {
       "type": "object",
-      "required": ["slId"],
-      "properties": {
-        "slId": {
-          "type": "string",
-          "description": "화면 또는 섹션 ID"
-        }
-      },
-      "additionalProperties": false
+      "description": "URL별 동적 파라미터 (Metadata 기준 검증)",
+      "properties": {},
+      "additionalProperties": true
     }
   },
   "additionalProperties": false

@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# 전역 세션 ID 고정 (체크포인팅용)
+DEFAULT_SESSION_ID = "default_user"
+
 @router.get("/actions")
 async def get_available_actions():
     """
@@ -26,29 +29,25 @@ async def get_available_actions():
 async def process_intent_endpoint(
     data: CommandRequest
 ):
-    session_id = data.session_id or "tmp_session"
-    logger.info(f"[Session ID: {session_id}] Processing text intent: {data.text} (Project: {data.projectId}, SL: {data.slId})")
+    session_id = DEFAULT_SESSION_ID
+    logger.info(f"[Session ID: {session_id}] Processing text intent: {data.text} (Project: {data.projectId})")
     try:
-        # 1. DB에서 세션 히스토리 가져오기
-        # history = get_session_history(session_id)
-
-        # 2. 사용자 입력 로깅
+        # 1. 사용자 입력 로깅
         log_conversation(session_id, "user", data.text)
         
-        # 3. NLU 분석 (LangGraph 체크포인터가 히스토리를 자동 관리함)
+        # 2. NLU 분석
         response = await parse_intent(
             text=data.text, 
             session_id=session_id, 
             project_id=data.projectId, 
-            sl_id=data.slId,
             selected_candidate=data.selected_candidate
         )
         response.session_id = session_id
         
-        # 4. 어시스턴트 응답 로깅
+        # 3. 어시스턴트 응답 로깅
         log_conversation(session_id, "assistant", response.message)
         
-        # 5. 액션 시도 로깅 및 log_id 획득
+        # 4. 액션 시도 로깅 및 log_id 획득
         log_entry = log_action(session_id, data.text, response.model_dump())
         response.log_id = log_entry.id
         
@@ -67,16 +66,14 @@ async def process_intent_endpoint(
 @router.post("/upload-audio", response_model=NLUResponse)
 async def process_audio(
     file: UploadFile = File(...),
-    session_id: Optional[str] = Form(None),
-    projectId: Optional[str] = Form(None),
-    slId: Optional[str] = Form(None)
+    projectId: Optional[str] = Form(None)
 ):
     file_location = f"temp_{file.filename}"
     with open(file_location, "wb+") as file_object:
         file_object.write(await file.read())
     
-    session_id = session_id or "audio_session"
-    logger.info(f"[Session ID: {session_id}] Processing audio upload: {file.filename} (Project: {projectId}, SL: {slId})")
+    session_id = DEFAULT_SESSION_ID
+    logger.info(f"[Session ID: {session_id}] Processing audio upload: {file.filename} (Project: {projectId})")
     try:
         transcript = await transcribe_audio(file_location)
         logger.info(f"[Session ID: {session_id}] Transcribed text: {transcript}")
@@ -93,8 +90,7 @@ async def process_audio(
         response = await parse_intent(
             transcript, 
             session_id=session_id,
-            project_id=projectId,
-            sl_id=slId
+            project_id=projectId
         )
         response.session_id = session_id
         
@@ -121,16 +117,13 @@ async def process_audio(
 async def mock_command(
     data: CommandRequest
 ):
-    session_id = data.session_id or "mock_session"
-    logger.info(f"[Session ID: {session_id}] Processing mock command: {data.text} (Project: {data.projectId}, SL: {data.slId})")
+    session_id = DEFAULT_SESSION_ID
+    logger.info(f"[Session ID: {session_id}] Processing mock command: {data.text} (Project: {data.projectId})")
     try:
-        # history = get_session_history(session_id)
-
         response = await parse_intent(
             text=data.text, 
             session_id=session_id, 
             project_id=data.projectId, 
-            sl_id=data.slId,
             selected_candidate=data.selected_candidate
         )
         response.session_id = session_id

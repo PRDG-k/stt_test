@@ -17,7 +17,6 @@ class AgentState(TypedDict):
     text: str
     session_id: str
     project_id: Optional[str]
-    sl_id: Optional[str]
     messages: Annotated[List[BaseMessage], add_messages]
     selected_actions: List[str]
     candidates: List[Dict[str, Any]]
@@ -136,19 +135,13 @@ async def extract_params_node(state: AgentState):
         # 해당 액션의 기존 데이터 객체가 있으면 전달
         current_action_obj = existing_candidates.get(action_name)
 
-        # 기본 인자(ProjectID, SLID) 주입 시도
+        # 기본 인자(ProjectID) 주입 시도
         if current_action_obj is None:
             current_action_obj = {}
         
-        # MOVE_PAGE 등에서 사용하는 projectId, slId 기본값 주입
+        # MOVE_PAGE 등에서 사용하는 projectId 기본값 주입
         if state.get("project_id") and "projectId" not in current_action_obj:
             current_action_obj["projectId"] = state["project_id"]
-        
-        if state.get("sl_id"):
-            if "params" not in current_action_obj:
-                current_action_obj["params"] = {}
-            if isinstance(current_action_obj["params"], dict) and "slId" not in current_action_obj["params"]:
-                current_action_obj["params"]["slId"] = state["sl_id"]
         
         full_action = await _extract_params(action_name, text, dynamic_context, current_action_obj, history=history)
         if full_action:
